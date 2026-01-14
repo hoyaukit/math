@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>電競手速王：極限反應挑戰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', 'Orbitron', sans-serif;
+            background-color: #0a0a0c;
+            color: white;
+            overflow: hidden;
+            touch-action: none; /* 防止 iPad 縮放與捲動 */
+        }
+
+        .neon-border {
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .target {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: transform 0.1s;
+            user-select: none;
+        }
+
+        .target:active {
+            transform: scale(0.8);
+        }
+
+        .apm-target {
+            background: radial-gradient(circle, var(--neon-blue), #0044ff);
+            box-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        .score-text {
+            text-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        /* 掃描線效果 */
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 243, 255, 0.1);
+            position: absolute;
+            animation: scan 4s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes scan {
+            from { top: 0; }
+            to { top: 100%; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <div class="scanline"></div>
+
+    <!-- 遊戲頂部欄 -->
+    <header class="p-4 flex justify-between items-center bg-black/50 border-b border-blue-900/50">
+        <div>
+            <h1 class="text-xl font-bold tracking-widest text-blue-400">PRO GAMER <span class="text-white">TRAINER</span></h1>
+        </div>
+        <div class="flex gap-6 font-mono">
+            <div class="text-center">
+                <p class="text-xs text-gray-500">APM (手速)</p>
+                <p id="apm-display" class="text-xl text-cyan-400 font-bold">0</p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-gray-500">SCORE</p>
+                <p id="score-display" class="text-xl text-pink-500 font-bold">0</p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-gray-500">TIME</p>
+                <p id="time-display" class="text-xl text-white font-bold">30</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- 遊戲主舞台 -->
+    <main id="game-stage" class="flex-grow relative overflow-hidden">
+        <!-- 初始選單 -->
+        <div id="start-menu" class="absolute inset-0 flex flex-center items-center justify-center bg-black/80 z-20">
+            <div class="text-center p-8 max-w-md w-full">
+                <h2 class="text-4xl font-black mb-8 tracking-tighter italic">挑戰你的電競基因</h2>
+                <div class="space-y-4">
+                    <button onclick="startGame('apm')" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-lg shadow-lg neon-border">
+                        APM 爆發訓練
+                    </button>
+                    <button onclick="startGame('precision')" class="w-full py-4 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold text-lg shadow-lg border-2 border-purple-400">
+                        精準狙擊挑戰
+                    </button>
+                </div>
+                <p class="mt-8 text-gray-500 text-sm italic">建議將 iPad 橫放於桌面使用雙手操作</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- 結束結算 -->
+    <div id="end-screen" class="hidden absolute inset-0 bg-black/90 z-30 flex flex-col items-center justify-center p-8">
+        <h2 id="rank-title" class="text-6xl font-black text-blue-400 mb-2 italic">RANK: S</h2>
+        <p id="final-stats" class="text-xl mb-8">平均 APM: 250 | 命中率: 98%</p>
+        <button onclick="resetGame()" class="px-12 py-4 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition">重新測試</button>
+    </div>
+
+    <script>
+        const stage = document.getElementById('game-stage');
+        const scoreDisplay = document.getElementById('score-display');
+        const apmDisplay = document.getElementById('apm-display');
+        const timeDisplay = document.getElementById('time-display');
+        const startMenu = document.getElementById('start-menu');
+        const endScreen = document.getElementById('end-screen');
+
+        let score = 0;
+        let timeLeft = 30;
+        let gameActive = false;
+        let clickHistory = [];
+        let gameTimer;
+        let mode = 'apm';
+
+        function startGame(selectedMode) {
+            mode = selectedMode;
+            score = 0;
+            timeLeft = 30;
+            gameActive = true;
+            clickHistory = [];
+            scoreDisplay.innerText = "0";
+            timeDisplay.innerText = "30";
+            startMenu.style.display = 'none';
+            endScreen.classList.add('hidden');
+            
+            // 開始計時器
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                timeDisplay.innerText = timeLeft;
+                updateAPM();
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+
+            // 產生第一個目標
+            createTarget();
+        }
+
+        function createTarget() {
+            if (!gameActive) return;
+
+            const target = document.createElement('div');
+            const size = mode === 'apm' ? 80 : (Math.max(30, 80 - score/2));
+            
+            target.className = `target apm-target`;
+            target.style.width = size + 'px';
+            target.style.height = size + 'px';
+            
+            // 隨機位置 (扣除邊界)
+            const x = Math.random() * (stage.clientWidth - size);
+            const y = Math.random() * (stage.clientHeight - size);
+            
+            target.style.left = x + 'px';
+            target.style.top = y + 'px';
+
+            // 點擊事件
+            const hitEvent = (e) => {
+                e.preventDefault();
+                if (!gameActive) return;
+                
+                score++;
+                scoreDisplay.innerText = score;
+                clickHistory.push(Date.now());
+                
+                // 移除舊目標，產生新目標
+                target.remove();
+                
+                // APM 模式下目標較多，一次產生 1~2 個
+                createTarget();
+                if (mode === 'apm' && score % 10 === 0) createTarget();
+            };
+
+            target.addEventListener('touchstart', hitEvent);
+            target.addEventListener('mousedown', hitEvent);
+
+            stage.appendChild(target);
+
+            // 如果是精準模式，目標會縮小消失
+            if (mode === 'precision') {
+                setTimeout(() => {
+                    if (target.parentNode) {
+                        target.remove();
+                        createTarget();
+                    }
+                }, 1500 - Math.min(1000, score * 20));
+            }
+        }
+
+        function updateAPM() {
+            const now = Date.now();
+            // 只計算最近 5 秒的點擊來計算即時 APM
+            clickHistory = clickHistory.filter(time => now - time < 5000);
+            const apm = Math.round((clickHistory.length / 5) * 60);
+            apmDisplay.innerText = apm;
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameTimer);
+            
+            // 清除畫面上所有目標
+            const targets = document.querySelectorAll('.target');
+            targets.forEach(t => t.remove());
+
+            // 顯示結果
+            endScreen.classList.remove('hidden');
+            const avgApm = Math.round((score / 30) * 60);
+            let rank = 'D';
+            if (avgApm > 300) rank = 'SSS';
+            else if (avgApm > 250) rank = 'SS';
+            else if (avgApm > 200) rank = 'S';
+            else if (avgApm > 150) rank = 'A';
+            else if (avgApm > 100) rank = 'B';
+            else if (avgApm > 50) rank = 'C';
+
+            document.getElementById('rank-title').innerText = `RANK: ${rank}`;
+            document.getElementById('final-stats').innerText = `總擊中數: ${score} | 平均 APM: ${avgApm}`;
+        }
+
+        function resetGame() {
+            endScreen.classList.add('hidden');
+            startMenu.style.display = 'flex';
+        }
+
+        // 禁止 iPad 預設手勢
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>\
